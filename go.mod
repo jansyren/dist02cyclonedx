@@ -19,5 +19,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-module https://github.com/jansyren/dist02cyclonedx/blob/main/go.sum
+module gitlab.internal.ericsson.com/gss-network-tools/ssip/go-sbom
+
 go 1.23.1
+
+replace gitlab.internal.ericsson.com/gss-network-tools/ssip/go-sbom => github.com/jansyren/dist02cyclonedx v0.1
