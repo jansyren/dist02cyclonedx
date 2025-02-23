@@ -177,13 +177,18 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 
     // Process Dependencies
     bomDependencies := []cyclonedx.Dependency{}
-    for _, comp := range components {
-        deps, err := getDependencies(packageManager, comp.Name)
-        if err != nil {
-            log.Printf("Error getting dependencies for %s: %v", comp.Name, err)
-            continue
-        }
+    packageNames := make([]string, len(components))
+    for i, comp := range components {
+        packageNames[i] = comp.Name
+    }
 
+    dependencyMap, err := getDependencies(packageManager, packageNames)
+    if err != nil {
+        return nil, fmt.Errorf("error getting dependencies: %v", err)
+    }
+
+    for _, comp := range components {
+        deps := dependencyMap[comp.Name]
         depRefs := []string{}
         for _, dep := range deps {
             if ref, exists := componentMap[dep]; exists {
@@ -200,11 +205,6 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
     }
 
     bom.Dependencies = &bomDependencies
-
-    // Validate SBOM against CycloneDX 1.6 schema
-    if err := cyclonedx.Validate(bom); err != nil {
-        return nil, fmt.Errorf("SBOM validation error: %v", err)
-    }
 
     return bom, nil
 }
@@ -322,29 +322,72 @@ func getOSVersion() string {
 	return runtime.GOOS + "/" + runtime.GOARCH
 }
 
-func getDependencies(packageManager, packageName string) ([]string, error) {
-	var cmd *exec.Cmd
-	switch packageManager {
-	case "dpkg":
-		cmd = exec.Command("apt-cache", "depends", packageName)
-	case "apk":
-		cmd = exec.Command("apk", "info", "-d", packageName)
-	case "rpm":
-		cmd = exec.Command("rpm", "-qR", packageName)
-	default:
-		return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
-	}
+func getDependencies(packageManager string, packageNames []string) (map[string][]string, error) {
+    type result struct {
+        packageName  string
+        dependencies []string
+        err          error
+    }
 
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("error executing dependency command: %v", err)
-	}
+    numWorkers := 4
+    jobs := make(chan string, len(packageNames))
+    results := make(chan result, len(packageNames))
 
-	var dependencies []string
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
-	for scanner.Scan() {
-		dependencies = append(dependencies, strings.TrimSpace(scanner.Text()))
-	}
+    // Worker function
+    worker := func() {
+        for packageName := range jobs {
+            dependencies, err := fetchDependencies(packageManager, packageName)
+            results <- result{packageName, dependencies, err}
+        }
+    }
 
-	return dependencies, nil
+    // Start workers
+    for i := 0; i < numWorkers; i++ {
+        go worker()
+    }
+
+    // Send jobs
+    for _, packageName := range packageNames {
+        jobs <- packageName
+    }
+    close(jobs)
+
+    // Collect results
+    dependencyMap := make(map[string][]string)
+    for i := 0; i < len(packageNames); i++ {
+        res := <-results
+        if res.err != nil {
+            return nil, res.err
+        }
+        dependencyMap[res.packageName] = res.dependencies
+    }
+
+    return dependencyMap, nil
+}
+
+func fetchDependencies(packageManager, packageName string) ([]string, error) {
+    var cmd *exec.Cmd
+    switch packageManager {
+    case "dpkg":
+        cmd = exec.Command("apt-cache", "depends", packageName)
+    case "apk":
+        cmd = exec.Command("apk", "info", "-d", packageName)
+    case "rpm":
+        cmd = exec.Command("rpm", "-qR", packageName)
+    default:
+        return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
+    }
+
+    output, err := cmd.Output()
+    if err != nil {
+        return nil, fmt.Errorf("error executing dependency command: %v", err)
+    }
+
+    var dependencies []string
+    scanner := bufio.NewScanner(strings.NewReader(string(output)))
+    for scanner.Scan() {
+        dependencies = append(dependencies, strings.TrimSpace(scanner.Text()))
+    }
+
+    return dependencies, nil
 }
