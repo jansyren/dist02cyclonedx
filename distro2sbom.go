@@ -66,141 +66,147 @@ func main() {
 }
 
 func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
-	bom := cyclonedx.NewBOM()
-	bom.Version = 1
-	bom.SpecVersion = cyclonedx.SpecVersion1_6
-	bom.SerialNumber = uuid.New().URN()
-	bom.BOMFormat = "CycloneDX"
+    bom := cyclonedx.NewBOM()
+    bom.Version = 1
+    bom.SpecVersion = cyclonedx.SpecVersion1_6
+    bom.SerialNumber = uuid.New().URN()
+    bom.BOMFormat = "CycloneDX"
 
-	// Set Metadata with lifecycles
-	bom.Metadata = &cyclonedx.Metadata{
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		Lifecycles: &[]cyclonedx.Lifecycle{
-			{Phase: "operations"},
-		},
-		Tools: &cyclonedx.ToolsChoice{
-			Components: &[]cyclonedx.Component{
-				{
-					Type:    cyclonedx.ComponentTypeApplication,
-					Name:    "distro2sbom",
-					Version: "0.5.2",
-				},
-			},
-		},
-		Component: &cyclonedx.Component{
-			Type:    cyclonedx.ComponentTypeOS,
-			Name:    distro,
-			Version: version,
-			BOMRef:  "CDXRef-DOCUMENT",
-			ExternalReferences: &[]cyclonedx.ExternalReference{
-				{
-					URL:     "https://www." + strings.ToLower(distro) + ".com/",
-					Type:    cyclonedx.ERTypeWebsite,
-					Comment: "Home page for project",
-				},
-			},
-		},
-	}
+    // Set Metadata with lifecycles
+    bom.Metadata = &cyclonedx.Metadata{
+        Timestamp: time.Now().UTC().Format(time.RFC3339),
+        Lifecycles: &[]cyclonedx.Lifecycle{
+            {Phase: "operations"},
+        },
+        Tools: &cyclonedx.ToolsChoice{
+            Components: &[]cyclonedx.Component{
+                {
+                    Type:    cyclonedx.ComponentTypeApplication,
+                    Name:    "distro2sbom",
+                    Version: "0.5.2",
+                },
+            },
+        },
+        Component: &cyclonedx.Component{
+            Type:    cyclonedx.ComponentTypeOS,
+            Name:    distro,
+            Version: version,
+            BOMRef:  "CDXRef-DOCUMENT",
+            ExternalReferences: &[]cyclonedx.ExternalReference{
+                {
+                    URL:     "https://www." + strings.ToLower(distro) + ".com/",
+                    Type:    cyclonedx.ERTypeWebsite,
+                    Comment: "Home page for project",
+                },
+            },
+        },
+    }
 
-	// Determine package manager
-	var packageManager string
-	switch strings.ToLower(distro) {
-	case "ubuntu", "debian":
-		packageManager = "dpkg"
-	case "alpine":
-		packageManager = "apk"
-	case "centos", "fedora", "rhel", "opensuse":
-		packageManager = "rpm"
-	default:
-		return nil, fmt.Errorf("unsupported distribution: %s", distro)
-	}
+    // Determine package manager
+    var packageManager string
+    switch strings.ToLower(distro) {
+    case "ubuntu", "debian":
+        packageManager = "dpkg"
+    case "alpine":
+        packageManager = "apk"
+    case "centos", "fedora", "rhel", "opensuse":
+        packageManager = "rpm"
+    default:
+        return nil, fmt.Errorf("unsupported distribution: %s", distro)
+    }
 
-	// Retrieve installed packages
-	packages, err := listPackages(packageManager)
-	if err != nil {
-		return nil, fmt.Errorf("error listing packages: %v", err)
-	}
+    // Retrieve installed packages
+    packages, err := listPackages(packageManager)
+    if err != nil {
+        return nil, fmt.Errorf("error listing packages: %v", err)
+    }
 
-	components := []cyclonedx.Component{}
-	componentMap := make(map[string]string)
+    components := []cyclonedx.Component{}
+    componentMap := make(map[string]string)
 
-	for i, pkg := range packages {
-		bomRef := fmt.Sprintf("%d-%s", i+1, pkg.Name)
-		license := fetchPackageLicense(packageManager, pkg.Name)
+    for i, pkg := range packages {
+        bomRef := fmt.Sprintf("%d-%s", i+1, pkg.Name)
+        license := fetchPackageLicense(packageManager, pkg.Name)
 
-		// Construct CPE
-		cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", strings.ReplaceAll(distro, " ", "_"), pkg.Name, pkg.Version)
+        // Construct CPE
+        cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", strings.ReplaceAll(distro, " ", "_"), pkg.Name, pkg.Version)
 
-		// Construct External References
-		externalRefs := []cyclonedx.ExternalReference{
-			{
-				URL:     "https://packages." + strings.ToLower(distro) + ".org/" + pkg.Name,
-				Type:    cyclonedx.ERTypeDistribution,
-				Comment: "Package distribution reference",
-			},
-		}
+        // Construct External References
+        externalRefs := []cyclonedx.ExternalReference{
+            {
+                URL:     "https://packages." + strings.ToLower(distro) + ".org/" + pkg.Name,
+                Type:    cyclonedx.ERTypeDistribution,
+                Comment: "Package distribution reference",
+            },
+        }
 
-		// Build License struct
-		licenses := &cyclonedx.Licenses{}
-		if license != "UNKNOWN" {
-			*licenses = append(*licenses, cyclonedx.LicenseChoice{
-				License: &cyclonedx.License{
-					ID:              license,
-					URL:             "https://spdx.org/licenses/" + license + ".html",
-					Acknowledgement: cyclonedx.LicenseAcknowledgementConcluded,
-				},
-			})
-		}
+        // Build License struct
+        licenses := &cyclonedx.Licenses{}
+        if license != "UNKNOWN" {
+            *licenses = append(*licenses, cyclonedx.LicenseChoice{
+                License: &cyclonedx.License{
+                    ID:              license,
+                    URL:             "https://spdx.org/licenses/" + license + ".html",
+                    Acknowledgement: cyclonedx.LicenseAcknowledgementConcluded,
+                },
+            })
+        }
 
-		component := cyclonedx.Component{
-			Type:    cyclonedx.ComponentTypeLibrary,
-			Name:    pkg.Name,
-			Version: pkg.Version,
-			BOMRef:  bomRef,
-			Supplier: &cyclonedx.OrganizationalEntity{
-				Name: "Ubuntu Developers",
-				Contact: &[]cyclonedx.OrganizationalContact{
-					{Email: "ubuntu-devel-discuss@lists.ubuntu.com"},
-				},
-			},
-			PackageURL:         fmt.Sprintf("pkg:%s/%s@%s", packageManager, pkg.Name, pkg.Version),
-			CPE:                cpe,
-			ExternalReferences: &externalRefs,
-			Licenses:           licenses,
-		}
+        component := cyclonedx.Component{
+            Type:    cyclonedx.ComponentTypeLibrary,
+            Name:    pkg.Name,
+            Version: pkg.Version,
+            BOMRef:  bomRef,
+            Supplier: &cyclonedx.OrganizationalEntity{
+                Name: "Ubuntu Developers",
+                Contact: &[]cyclonedx.OrganizationalContact{
+                    {Email: "ubuntu-devel-discuss@lists.ubuntu.com"},
+                },
+            },
+            PackageURL:         fmt.Sprintf("pkg:%s/%s@%s", packageManager, pkg.Name, pkg.Version),
+            CPE:                cpe,
+            ExternalReferences: &externalRefs,
+            Licenses:           licenses,
+        }
 
-		components = append(components, component)
-		componentMap[pkg.Name] = bomRef
-	}
+        components = append(components, component)
+        componentMap[pkg.Name] = bomRef
+    }
 
-	bom.Components = &components
+    bom.Components = &components
 
-	// Process Dependencies
-	bomDependencies := []cyclonedx.Dependency{}
-	for _, comp := range components {
-		deps, err := getDependencies(packageManager, comp.Name)
-		if err != nil {
-			log.Printf("Error getting dependencies for %s: %v", comp.Name, err)
-			continue
-		}
+    // Process Dependencies
+    bomDependencies := []cyclonedx.Dependency{}
+    for _, comp := range components {
+        deps, err := getDependencies(packageManager, comp.Name)
+        if err != nil {
+            log.Printf("Error getting dependencies for %s: %v", comp.Name, err)
+            continue
+        }
 
-		depRefs := []string{}
-		for _, dep := range deps {
-			if ref, exists := componentMap[dep]; exists {
-				depRefs = append(depRefs, ref)
-			}
-		}
+        depRefs := []string{}
+        for _, dep := range deps {
+            if ref, exists := componentMap[dep]; exists {
+                depRefs = append(depRefs, ref)
+            }
+        }
 
-		if len(depRefs) > 0 {
-			bomDependencies = append(bomDependencies, cyclonedx.Dependency{
-				Ref:          comp.BOMRef,
-				Dependencies: &depRefs,
-			})
-		}
-	}
+        if len(depRefs) > 0 {
+            bomDependencies = append(bomDependencies, cyclonedx.Dependency{
+                Ref:          comp.BOMRef,
+                Dependencies: &depRefs,
+            })
+        }
+    }
 
-	bom.Dependencies = &bomDependencies
-	return bom, nil
+    bom.Dependencies = &bomDependencies
+
+    // Validate SBOM against CycloneDX 1.6 schema
+    if err := cyclonedx.Validate(bom); err != nil {
+        return nil, fmt.Errorf("SBOM validation error: %v", err)
+    }
+
+    return bom, nil
 }
 
 func fetchPackageLicense(packageManager, packageName string) string {
