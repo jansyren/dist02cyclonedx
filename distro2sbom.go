@@ -99,8 +99,8 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 
     // Create a root component for the entire system or project
     rootComponent := cyclonedx.Component{
-        Type:    cyclonedx.ComponentTypeApplication,
-        Name:    "RootComponent",
+        Type:    cyclonedx.ComponentTypeOS,
+        Name:    distro,
         Version: version,
         BOMRef:  "CDXRef-RootComponent",
     }
@@ -183,7 +183,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
     // Process Dependencies
     bomDependencies := []cyclonedx.Dependency{
         {
-            Ref:          "CDXRef-RootComponent",
+            Ref:          "CDXRef-DOCUMENT",
             Dependencies: &[]string{},
         },
     }
