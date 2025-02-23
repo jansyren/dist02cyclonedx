@@ -21,6 +21,7 @@ var licenseCorrections = map[string]string{
     "GPL-3":         "GPL-3.0",
     "GPL-2+":        "GPL-2.0+",
     "GPL-2":         "GPL-2.0",
+    "GPL-2)":        "GPL-2.0",
     "GPL-1":         "GPL-1.0",
     "GPL-1+":        "GPL-1.0+",
     "LGPL-1":        "LGPL-1.0",
@@ -35,6 +36,22 @@ var licenseCorrections = map[string]string{
     "WTFPL-2":       "WTFPL",
     "APACHE-2-LLVM-EXCEPTIONS": "Apache-2.0",
     "Artistic":	  "Artistic-2.0",
+    "GPL":	"GPL-3.0",
+    "GPL-any":	"GPL-3.0",
+    "BSD-2":	"BSD-2-Clause",
+    "BSD-3":	"BSD-3-Clause",
+    "BSD-4":	"BSD-4-Clause",
+    "BSD-4-clause":	"BSD-4-Clause",
+    "Apache-2":	"Apache-2.0",
+    "GFDL-NIV-1.3+":	"GFDL-1.3",
+    "SIL-OFL-1.1":	"OFL-1.1",
+    "SIL-1.1":	"OFL-1.1",
+    "AGPL-3+":	"AGPL-3.0-or-later",
+    "OpenLDAP-2.8": "OLDAP-2.8",
+    "LPGL-2.1+":  "LGPL-2.1-or-later",
+    "MIT-1": "MIT",
+    "BSD-3-clauses": "BSD-3-Clause",
+
     // Add more corrections as needed
 }
 
