@@ -19,23 +19,23 @@ var licenseCorrections = map[string]string{
     "BSD-2-clause":  "BSD-2-Clause",
     "BSD-3-clause":  "BSD-3-Clause",
     "GPL-3":         "GPL-3.0",
-	"GPL-2+":        "GPL-2.0+",
-	"GPL-2":         "GPL-2.0",
-	"GPL-1":         "GPL-1.0",
-	"GPL-1+":        "GPL-1.0+",
-	"LGPL-1":        "LGPL-1.0",
-	"LGPL-1+": 	     "LGPL-1.0+",
-	"LGPL-2":        "LGPL-2.0",
-	"LGPL-2+":       "LGPL-2.0+",
-	"LGPL-3":        "LGPL-3.0",
-	"LGPL-3+":       "LGPL-3.0+",
-	"AGPL-1":        "AGPL-1.0",
-	"AGPL-2":        "AGPL-2.0",
-	"AGPL-3":        "AGPL-3.0",
-	"WTFPL-2":       "WTFPL",
-	"APACHE-2-LLVM-EXCEPTIONS": "Apache-2.0",
-	"Artistic":	  "Artistic-2.0",
-    // Add more corrections as need
+    "GPL-2+":        "GPL-2.0+",
+    "GPL-2":         "GPL-2.0",
+    "GPL-1":         "GPL-1.0",
+    "GPL-1+":        "GPL-1.0+",
+    "LGPL-1":        "LGPL-1.0",
+    "LGPL-1+": 	     "LGPL-1.0+",
+    "LGPL-2":        "LGPL-2.0",
+    "LGPL-2+":       "LGPL-2.0+",
+    "LGPL-3":        "LGPL-3.0",
+    "LGPL-3+":       "LGPL-3.0+",
+    "AGPL-1":        "AGPL-1.0",
+    "AGPL-2":        "AGPL-2.0",
+    "AGPL-3":        "AGPL-3.0",
+    "WTFPL-2":       "WTFPL",
+    "APACHE-2-LLVM-EXCEPTIONS": "Apache-2.0",
+    "Artistic":	  "Artistic-2.0",
+    // Add more corrections as needed
 }
 
 func init() {
@@ -46,24 +46,24 @@ func init() {
         os.Exit(1)
     }
 
-    var schema map[string]interface{}
+    var schema struct {
+        Enum []string `json:"enum"`
+    }
     if err := json.Unmarshal(data, &schema); err != nil {
         fmt.Printf("Failed to parse SPDX schema: %v\n", err)
         os.Exit(1)
     }
 
     spdxLicenses = make(map[string]struct{})
-    if definitions, ok := schema["definitions"].(map[string]interface{}); ok {
-        if licenseEnum, ok := definitions["license"].(map[string]interface{}); ok {
-            if enum, ok := licenseEnum["enum"].([]interface{}); ok {
-                for _, license := range enum {
-                    if licenseStr, ok := license.(string); ok {
-                        spdxLicenses[licenseStr] = struct{}{}
-                    }
-                }
-            }
-        }
+    fmt.Println("Parsing SPDX schema...")
+
+    for _, license := range schema.Enum {
+        fmt.Printf("Loaded license: %s\n", license)
+        spdxLicenses[license] = struct{}{}
     }
+
+    // Log the loaded SPDX licenses for debugging
+    fmt.Printf("Loaded %d SPDX licenses\n", len(spdxLicenses))
 }
 
 func FetchPackageLicense(packageManager, packageName string) []string {
@@ -134,8 +134,13 @@ func correctLicenses(licenses string) []string {
             }
             if _, isValid := spdxLicenses[license]; isValid {
                 validLicenses = append(validLicenses, license)
+            } else {
+                fmt.Printf("Invalid license: %s\n", license)
             }
         }
     }
+
+    // Log the valid licenses for debugging
+    // fmt.Printf("Valid licenses: %v\n", validLicenses)
     return validLicenses
 }

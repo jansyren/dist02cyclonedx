@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,34 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
-
-//go:embed spdx.schema.json
-var spdxSchema embed.FS
-
-var spdxLicenses map[string]struct{}
-var licenseCorrections = map[string]string{
-    "GPL-3+":        "GPL-3.0+",
-    "BSD-2-clause":  "BSD-2-Clause",
-    "BSD-3-clause":  "BSD-3-Clause",
-    "GPL-3":         "GPL-3.0",
-	"GPL-2+":        "GPL-2.0+",
-	"GPL-2":         "GPL-2.0",
-	"GPL-1":         "GPL-1.0",
-	"GPL-1+":        "GPL-1.0+",
-	"LGPL-1":        "LGPL-1.0",
-	"LGPL-1+": 	     "LGPL-1.0+",
-	"LGPL-2":        "LGPL-2.0",
-	"LGPL-2+":       "LGPL-2.0+",
-	"LGPL-3":        "LGPL-3.0",
-	"LGPL-3+":       "LGPL-3.0+",
-	"AGPL-1":        "AGPL-1.0",
-	"AGPL-2":        "AGPL-2.0",
-	"AGPL-3":        "AGPL-3.0",
-	"WTFPL-2":       "WTFPL",
-	"APACHE-2-LLVM-EXCEPTIONS": "Apache-2.0",
-	"Artistic":	  "Artistic-2.0",
-    // Add more corrections as needed
-}
 
 
 func main() {
@@ -322,7 +293,7 @@ func getDependencies(packageManager string, packageNames []string) (map[string][
         err          error
     }
 
-    numWorkers := 4
+    numWorkers := 8
     jobs := make(chan string, len(packageNames))
     results := make(chan result, len(packageNames))
 
