@@ -97,6 +97,14 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
         },
     }
 
+    // Create a root component for the entire system or project
+    rootComponent := cyclonedx.Component{
+        Type:    cyclonedx.ComponentTypeApplication,
+        Name:    "RootComponent",
+        Version: version,
+        BOMRef:  "CDXRef-RootComponent",
+    }
+
     // Determine package manager
     var packageManager string
     switch strings.ToLower(distro) {
@@ -116,7 +124,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
         return nil, fmt.Errorf("error listing packages: %v", err)
     }
 
-    components := []cyclonedx.Component{}
+    components := []cyclonedx.Component{rootComponent}
     componentMap := make(map[string]string)
 
     for i, pkg := range packages {
@@ -173,9 +181,14 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
     bom.Components = &components
 
     // Process Dependencies
-    bomDependencies := []cyclonedx.Dependency{}
-    packageNames := make([]string, len(components))
-    for i, comp := range components {
+    bomDependencies := []cyclonedx.Dependency{
+        {
+            Ref:          "CDXRef-RootComponent",
+            Dependencies: &[]string{},
+        },
+    }
+    packageNames := make([]string, len(components)-1)
+    for i, comp := range components[1:] {
         packageNames[i] = comp.Name
     }
 
@@ -184,7 +197,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
         return nil, fmt.Errorf("error getting dependencies: %v", err)
     }
 
-    for _, comp := range components {
+    for _, comp := range components[1:] {
         deps := dependencyMap[comp.Name]
         depSet := make(map[string]struct{})
         for _, dep := range deps {
@@ -204,6 +217,11 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
                 Dependencies: &depRefs,
             })
         }
+
+        // Link all components as dependencies of the root component
+        rootDeps := *bomDependencies[0].Dependencies
+        rootDeps = append(rootDeps, comp.BOMRef)
+        bomDependencies[0].Dependencies = &rootDeps
     }
 
     bom.Dependencies = &bomDependencies
