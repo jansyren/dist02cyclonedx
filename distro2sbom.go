@@ -45,79 +45,48 @@ var licenseCorrections = map[string]string{
     // Add more corrections as needed
 }
 
-func init() {
-    // Load SPDX licenses from the embedded schema
-    data, err := spdxSchema.ReadFile("spdx.schema.json")
-    if err != nil {
-        log.Fatalf("Failed to read SPDX schema: %v", err)
-    }
-
-    var schema map[string]interface{}
-    if err := json.Unmarshal(data, &schema); err != nil {
-        log.Fatalf("Failed to parse SPDX schema: %v", err)
-    }
-
-    spdxLicenses = make(map[string]struct{})
-    if definitions, ok := schema["definitions"].(map[string]interface{}); ok {
-        if licenseEnum, ok := definitions["license"].(map[string]interface{}); ok {
-            if enum, ok := licenseEnum["enum"].([]interface{}); ok {
-                for _, license := range enum {
-                    if licenseStr, ok := license.(string); ok {
-                        spdxLicenses[licenseStr] = struct{}{}
-                    }
-                }
-            }
-        }
-    }
-}
 
 func main() {
-	var distro string
-	var output string
+    var distro string
+    var output string
 
-	var rootCmd = &cobra.Command{
-		Use:   "distro2sbom",
-		Short: "Generate SBOM for a Linux distribution.",
-		Long:  `distro2sbom generates a Software Bill of Materials (SBOM) for a given Linux distribution using CycloneDX format.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			if distro == "" {
-				fmt.Println("Error: --distro flag is required.")
-				os.Exit(1)
-			}
+    var rootCmd = &cobra.Command{
+        Use:   "distro2sbom",
+        Short: "Generate SBOM for a Linux distribution.",
+        Long:  `distro2sbom generates a Software Bill of Materials (SBOM) for a given Linux distribution using CycloneDX format.`,
+        Run: func(cmd *cobra.Command, args []string) {
+            if distro == "" {
+                fmt.Println("Please specify a distribution using the --distro flag.")
+                return
+            }
 
-			if output == "" {
-				fmt.Println("Error: --output flag is required.")
-				os.Exit(1)
-			}
+            sbom, err := generateSBOM(distro, "1.0")
+            if err != nil {
+                log.Fatalf("Error generating SBOM: %v", err)
+            }
 
-			version := getOSVersion()
+            sbomJSON, err := json.MarshalIndent(sbom, "", "  ")
+            if err != nil {
+                log.Fatalf("Error marshaling SBOM to JSON: %v", err)
+            }
 
-			sbom, err := generateSBOM(distro, version)
-			if err != nil {
-				log.Fatalf("Error generating SBOM: %v", err)
-			}
+            if output == "" {
+                fmt.Println(string(sbomJSON))
+            } else {
+                if err := os.WriteFile(output, sbomJSON, 0644); err != nil {
+                    log.Fatalf("Error writing SBOM to file: %v", err)
+                }
+            }
+        },
+    }
 
-			sbomJSON, err := json.MarshalIndent(sbom, "", "  ")
-			if err != nil {
-				log.Fatalf("Error marshaling SBOM to JSON: %v", err)
-			}
+    rootCmd.Flags().StringVarP(&distro, "distro", "d", "", "Linux distribution (e.g., ubuntu, debian)")
+    rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file for SBOM (default: stdout)")
 
-			err = os.WriteFile(output, sbomJSON, 0644)
-			if err != nil {
-				log.Fatalf("Error writing SBOM to file: %v", err)
-			}
-
-			fmt.Printf("SBOM written to %s\n", output)
-		},
-	}
-
-	rootCmd.Flags().StringVarP(&distro, "distro", "d", "", "The Linux distribution to generate SBOM for (e.g., ubuntu, debian, alpine, centos, fedora). Required.")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "sbom.json", "The output file for the SBOM (default: sbom.json).")
-
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
 }
 
 func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
@@ -181,7 +150,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 
     for i, pkg := range packages {
         bomRef := fmt.Sprintf("%d-%s", i+1, pkg.Name)
-        licenses := fetchPackageLicense(packageManager, pkg.Name)
+        licenses := FetchPackageLicense(packageManager, pkg.Name)
 
         // Construct CPE
         cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", strings.ReplaceAll(distro, " ", "_"), pkg.Name, pkg.Version)
@@ -269,84 +238,6 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
     bom.Dependencies = &bomDependencies
 
     return bom, nil
-}
-
-func fetchPackageLicense(packageManager, packageName string) []string {
-    var cmd *exec.Cmd
-    switch packageManager {
-    case "dpkg":
-        cmd = exec.Command("dpkg-query", "-W", "-f=${License}", packageName)
-    case "apk":
-        cmd = exec.Command("apk", "info", "-L", packageName)
-    case "rpm":
-        cmd = exec.Command("rpm", "-q", "--qf", "%{LICENSE}", packageName)
-    default:
-        return correctLicenses(fallbackFetchLicense(packageName))
-    }
-
-    output, err := cmd.Output()
-    if err != nil || len(output) == 0 {
-        // Fallback method
-        licenses := fallbackFetchLicense(packageName)
-        return correctLicenses(licenses)
-    }
-
-    licenses := strings.TrimSpace(string(output))
-    return correctLicenses(licenses)
-}
-
-func fallbackFetchLicense(packageName string) string {
-    // Check common locations for license files
-    licensePaths := []string{
-        fmt.Sprintf("/usr/share/doc/%s/copyright", packageName),
-        fmt.Sprintf("/usr/share/licenses/%s/LICENSE", packageName),
-        fmt.Sprintf("/usr/share/%s/LICENSE", packageName),
-    }
-
-    for _, licensePath := range licensePaths {
-        if content, err := os.ReadFile(licensePath); err == nil {
-            scanner := bufio.NewScanner(strings.NewReader(string(content)))
-            for scanner.Scan() {
-                line := strings.TrimSpace(scanner.Text())
-                if strings.HasPrefix(line, "License:") {
-                    return strings.TrimSpace(strings.TrimPrefix(line, "License:"))
-                }
-            }
-        }
-    }
-
-    return "UNKNOWN"
-}
-
-func correctLicenses(licenses string) []string {
-    // Split licenses by common delimiters
-    licenseList := strings.FieldsFunc(licenses, func(r rune) bool {
-        return r == ',' || r == '|' || r == '/' || r == '&' || r == ' ' || r == ';'
-    })
-
-    // Filter out bind words and correct licenses
-    validLicenses := []string{}
-    bindWords := map[string]struct{}{
-        "and": {},
-        "or":  {},
-		"with":{},
-		"exception":{},
-		"only":{},
-		"other":{},
-    }
-
-    for _, license := range licenseList {
-        license = strings.TrimSpace(license)
-        if _, isBindWord := bindWords[license]; !isBindWord {
-            if correctedLicense, exists := licenseCorrections[license]; exists {
-                license = correctedLicense
-            }
-            if _, isValid := spdxLicenses[license]; isValid {
-                validLicenses = append(validLicenses, license)
-            }
-        }
-    }
-    return validLicenses
 }
 
 func parseLicenseInfo(output string) string {
