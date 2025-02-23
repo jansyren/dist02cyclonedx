@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +16,60 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
+
+//go:embed spdx.schema.json
+var spdxSchema embed.FS
+
+var spdxLicenses map[string]struct{}
+var licenseCorrections = map[string]string{
+    "GPL-3+":        "GPL-3.0+",
+    "BSD-2-clause":  "BSD-2-Clause",
+    "BSD-3-clause":  "BSD-3-Clause",
+    "GPL-3":         "GPL-3.0",
+	"GPL-2+":        "GPL-2.0+",
+	"GPL-2":         "GPL-2.0",
+	"GPL-1":         "GPL-1.0",
+	"GPL-1+":        "GPL-1.0+",
+	"LGPL-1":        "LGPL-1.0",
+	"LGPL-1+": 	     "LGPL-1.0+",
+	"LGPL-2":        "LGPL-2.0",
+	"LGPL-2+":       "LGPL-2.0+",
+	"LGPL-3":        "LGPL-3.0",
+	"LGPL-3+":       "LGPL-3.0+",
+	"AGPL-1":        "AGPL-1.0",
+	"AGPL-2":        "AGPL-2.0",
+	"AGPL-3":        "AGPL-3.0",
+	"WTFPL-2":       "WTFPL",
+	"APACHE-2-LLVM-EXCEPTIONS": "Apache-2.0",
+	"Artistic":	  "Artistic-2.0",
+    // Add more corrections as needed
+}
+
+func init() {
+    // Load SPDX licenses from the embedded schema
+    data, err := spdxSchema.ReadFile("spdx.schema.json")
+    if err != nil {
+        log.Fatalf("Failed to read SPDX schema: %v", err)
+    }
+
+    var schema map[string]interface{}
+    if err := json.Unmarshal(data, &schema); err != nil {
+        log.Fatalf("Failed to parse SPDX schema: %v", err)
+    }
+
+    spdxLicenses = make(map[string]struct{})
+    if definitions, ok := schema["definitions"].(map[string]interface{}); ok {
+        if licenseEnum, ok := definitions["license"].(map[string]interface{}); ok {
+            if enum, ok := licenseEnum["enum"].([]interface{}); ok {
+                for _, license := range enum {
+                    if licenseStr, ok := license.(string); ok {
+                        spdxLicenses[licenseStr] = struct{}{}
+                    }
+                }
+            }
+        }
+    }
+}
 
 func main() {
 	var distro string
@@ -126,7 +181,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 
     for i, pkg := range packages {
         bomRef := fmt.Sprintf("%d-%s", i+1, pkg.Name)
-        license := fetchPackageLicense(packageManager, pkg.Name)
+        licenses := fetchPackageLicense(packageManager, pkg.Name)
 
         // Construct CPE
         cpe := fmt.Sprintf("cpe:2.3:a:%s:%s:%s:*:*:*:*:*:*:*", strings.ReplaceAll(distro, " ", "_"), pkg.Name, pkg.Version)
@@ -141,15 +196,17 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
         }
 
         // Build License struct
-        licenses := &cyclonedx.Licenses{}
-        if license != "UNKNOWN" {
-            *licenses = append(*licenses, cyclonedx.LicenseChoice{
-                License: &cyclonedx.License{
-                    ID:              license,
-                    URL:             "https://spdx.org/licenses/" + license + ".html",
-                    Acknowledgement: cyclonedx.LicenseAcknowledgementConcluded,
-                },
-            })
+        licenseChoices := cyclonedx.Licenses{}
+        for _, license := range licenses {
+            if license != "UNKNOWN" {
+                licenseChoices = append(licenseChoices, cyclonedx.LicenseChoice{
+                    License: &cyclonedx.License{
+                        ID:              license,
+                        URL:             "https://spdx.org/licenses/" + license + ".html",
+                        Acknowledgement: cyclonedx.LicenseAcknowledgementConcluded,
+                    },
+                })
+            }
         }
 
         component := cyclonedx.Component{
@@ -166,7 +223,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
             PackageURL:         fmt.Sprintf("pkg:%s/%s@%s", packageManager, pkg.Name, pkg.Version),
             CPE:                cpe,
             ExternalReferences: &externalRefs,
-            Licenses:           licenses,
+            Licenses:           &licenseChoices,
         }
 
         components = append(components, component)
@@ -189,11 +246,16 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 
     for _, comp := range components {
         deps := dependencyMap[comp.Name]
-        depRefs := []string{}
+        depSet := make(map[string]struct{})
         for _, dep := range deps {
             if ref, exists := componentMap[dep]; exists {
-                depRefs = append(depRefs, ref)
+                depSet[ref] = struct{}{}
             }
+        }
+
+        depRefs := []string{}
+        for ref := range depSet {
+            depRefs = append(depRefs, ref)
         }
 
         if len(depRefs) > 0 {
@@ -209,42 +271,82 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
     return bom, nil
 }
 
-func fetchPackageLicense(packageManager, packageName string) string {
-	var cmd *exec.Cmd
-	switch packageManager {
-	case "dpkg":
-		cmd = exec.Command("dpkg-query", "-W", "-f=${License}\n", packageName)
-	case "apk":
-		cmd = exec.Command("apk", "info", "-w", packageName)
-	case "rpm":
-		cmd = exec.Command("rpm", "-qi", packageName)
-	default:
-		return "UNKNOWN"
-	}
+func fetchPackageLicense(packageManager, packageName string) []string {
+    var cmd *exec.Cmd
+    switch packageManager {
+    case "dpkg":
+        cmd = exec.Command("dpkg-query", "-W", "-f=${License}", packageName)
+    case "apk":
+        cmd = exec.Command("apk", "info", "-L", packageName)
+    case "rpm":
+        cmd = exec.Command("rpm", "-q", "--qf", "%{LICENSE}", packageName)
+    default:
+        return correctLicenses(fallbackFetchLicense(packageName))
+    }
 
-	output, err := cmd.Output()
-	if err == nil {
-		license := parseLicenseInfo(string(output))
-		if license != "" {
-			return license
-		}
-	}
+    output, err := cmd.Output()
+    if err != nil || len(output) == 0 {
+        // Fallback method
+        licenses := fallbackFetchLicense(packageName)
+        return correctLicenses(licenses)
+    }
 
-	// Fallback method: Read from /usr/share/doc/<package>/copyright
-	if packageManager == "dpkg" {
-		licensePath := fmt.Sprintf("/usr/share/doc/%s/copyright", packageName)
-		if content, err := os.ReadFile(licensePath); err == nil {
-			scanner := bufio.NewScanner(strings.NewReader(string(content)))
-			for scanner.Scan() {
-				line := strings.TrimSpace(scanner.Text())
-				if strings.HasPrefix(line, "License:") {
-					return strings.TrimSpace(strings.TrimPrefix(line, "License:"))
-				}
-			}
-		}
-	}
+    licenses := strings.TrimSpace(string(output))
+    return correctLicenses(licenses)
+}
 
-	return "UNKNOWN"
+func fallbackFetchLicense(packageName string) string {
+    // Check common locations for license files
+    licensePaths := []string{
+        fmt.Sprintf("/usr/share/doc/%s/copyright", packageName),
+        fmt.Sprintf("/usr/share/licenses/%s/LICENSE", packageName),
+        fmt.Sprintf("/usr/share/%s/LICENSE", packageName),
+    }
+
+    for _, licensePath := range licensePaths {
+        if content, err := os.ReadFile(licensePath); err == nil {
+            scanner := bufio.NewScanner(strings.NewReader(string(content)))
+            for scanner.Scan() {
+                line := strings.TrimSpace(scanner.Text())
+                if strings.HasPrefix(line, "License:") {
+                    return strings.TrimSpace(strings.TrimPrefix(line, "License:"))
+                }
+            }
+        }
+    }
+
+    return "UNKNOWN"
+}
+
+func correctLicenses(licenses string) []string {
+    // Split licenses by common delimiters
+    licenseList := strings.FieldsFunc(licenses, func(r rune) bool {
+        return r == ',' || r == '|' || r == '/' || r == '&' || r == ' ' || r == ';'
+    })
+
+    // Filter out bind words and correct licenses
+    validLicenses := []string{}
+    bindWords := map[string]struct{}{
+        "and": {},
+        "or":  {},
+		"with":{},
+		"exception":{},
+		"only":{},
+		"other":{},
+    }
+
+    for _, license := range licenseList {
+        license = strings.TrimSpace(license)
+        if _, isBindWord := bindWords[license]; !isBindWord {
+            if correctedLicense, exists := licenseCorrections[license]; exists {
+                license = correctedLicense
+            }
+            if _, isValid := spdxLicenses[license]; isValid {
+                validLicenses = append(validLicenses, license)
+            }
+        }
+    }
+    return validLicenses
 }
 
 func parseLicenseInfo(output string) string {

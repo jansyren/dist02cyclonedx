@@ -25,3 +25,5 @@ go.work.sum
 .env
 
 sbom.json*
+
+validation.txt
