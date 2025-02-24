@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -58,7 +58,7 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
 	}
 
@@ -114,7 +114,7 @@ func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []b
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
 	}
 
