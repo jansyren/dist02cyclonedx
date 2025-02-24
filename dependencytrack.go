@@ -27,6 +27,41 @@ type SBOMUpload struct {
 	BOM         string `json:"bom"`
 }
 
+func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project?name=%s", apiURL, name), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header.Set("X-Api-Key", apiKey)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsVerify},
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	var projects []UUID
+	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+		return nil, fmt.Errorf("error decoding response: %v", err)
+	}
+
+	if len(projects) == 0 {
+		return nil, fmt.Errorf("project not found")
+	}
+
+	return &projects[0], nil
+}
+
 func createProject(apiURL, apiKey, name, version, classifier string, parentUUID *UUID, tlsVerify bool) (*UUID, error) {
 	project := Project{
 		Name:       name,
@@ -68,39 +103,6 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
-	}
-
-	var projectUUID UUID
-	if err := json.NewDecoder(resp.Body).Decode(&projectUUID); err != nil {
-		return nil, fmt.Errorf("error decoding response: %v", err)
-	}
-
-	return &projectUUID, nil
-}
-
-func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project?name=%s", apiURL, name), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("X-Api-Key", apiKey)
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsVerify},
-		},
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error sending request: %v", err)
-	}
-	defer resp.Body.Close()
-	fmt.Printf("resp: %v\n", resp)
-	fmt.Println(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
 	}
