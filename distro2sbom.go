@@ -84,6 +84,7 @@ func main() {
 	var output string
 	var apiURL string
 	var apiKey string
+	var tlsVerify bool
 
 	var rootCmd = &cobra.Command{
 		Use:   "distro2sbom",
@@ -109,6 +110,11 @@ func main() {
 				apiKey = viper.GetString("api-key")
 			} else {
 				apiKey, _ = cmd.Flags().GetString("api-key")
+			}
+			if !cmd.Flags().Changed("tls-verify") {
+				tlsVerify = viper.GetBool("tls-verify")
+			} else {
+				tlsVerify, _ = cmd.Flags().GetBool("tls-verify")
 			}
 
 			if distro == "" {
@@ -142,7 +148,7 @@ func main() {
 
 				osVersion := getOSVersion()
 
-				err = uploadSBOM(apiURL, apiKey, distro, hostname, osVersion, sbomJSON)
+				err = uploadSBOM(apiURL, apiKey, distro, hostname, osVersion, sbomJSON, tlsVerify)
 				if err != nil {
 					log.Fatalf("Error uploading SBOM: %v", err)
 				}
@@ -156,11 +162,13 @@ func main() {
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file for SBOM (default: stdout)")
 	rootCmd.Flags().StringVar(&apiURL, "api-url", "", "Dependency-Track API URL")
 	rootCmd.Flags().StringVar(&apiKey, "api-key", "", "Dependency-Track API Key")
+	rootCmd.Flags().BoolVar(&tlsVerify, "tls-verify", true, "Verify TLS certificates")
 
 	viper.BindPFlag("distro", rootCmd.Flags().Lookup("distro"))
 	viper.BindPFlag("output", rootCmd.Flags().Lookup("output"))
 	viper.BindPFlag("api-url", rootCmd.Flags().Lookup("api-url"))
 	viper.BindPFlag("api-key", rootCmd.Flags().Lookup("api-key"))
+	viper.BindPFlag("tls-verify", rootCmd.Flags().Lookup("tls-verify"))
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

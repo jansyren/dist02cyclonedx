@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,7 +25,7 @@ type SBOMUpload struct {
 	BOM         string `json:"bom"`
 }
 
-func createProject(apiURL, apiKey, name, version, classifier string, parentUUID *UUID) (*UUID, error) {
+func createProject(apiURL, apiKey, name, version, classifier string, parentUUID *UUID, tlsVerify bool) (*UUID, error) {
 	project := Project{
 		Name:       name,
 		Version:    version,
@@ -44,7 +45,11 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Api-Key", apiKey)
 
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsVerify},
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %v", err)
@@ -63,15 +68,15 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	return &projectUUID, nil
 }
 
-func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []byte) error {
+func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []byte, tlsVerify bool) error {
 	// Create or get the parent project for the distro
-	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "ComponentTypeOS", nil)
+	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "ComponentTypeOS", nil, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting parent project: %v", err)
 	}
 
 	// Create or get the project for the hostname
-	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "ComponentTypeOS", parentProjectUUID)
+	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "ComponentTypeOS", parentProjectUUID, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting project: %v", err)
 	}
@@ -95,7 +100,11 @@ func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []b
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Api-Key", apiKey)
 
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsVerify},
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error sending request: %v", err)
