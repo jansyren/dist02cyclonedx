@@ -28,3 +28,5 @@ sbom.json*
 
 validation.txt
 err.log
+
+dist02cyclonedx
