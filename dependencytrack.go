@@ -81,7 +81,7 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 }
 
 func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project/lookup?name=%s", apiURL, name), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project?name=%s", apiURL, name), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
