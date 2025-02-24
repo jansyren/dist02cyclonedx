@@ -2,16 +2,13 @@ package main
 
 import (
 	"bufio"
-	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
 )
-
-//go:embed spdx.schema.json
-var spdxSchema embed.FS
 
 var spdxLicenses map[string]struct{}
 var licenseCorrections = map[string]string{
@@ -55,20 +52,23 @@ var licenseCorrections = map[string]string{
 	// Add more corrections as needed
 }
 
-func init() {
-	// Load SPDX licenses from the embedded schema
-	data, err := spdxSchema.ReadFile("spdx.schema.json")
+func loadSPDXSchema(schemaPath string) error {
+	file, err := os.Open(schemaPath)
 	if err != nil {
-		fmt.Printf("Failed to read SPDX schema: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error opening SPDX schema file: %v", err)
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("error reading SPDX schema file: %v", err)
 	}
 
 	var schema struct {
 		Enum []string `json:"enum"`
 	}
 	if err := json.Unmarshal(data, &schema); err != nil {
-		fmt.Printf("Failed to parse SPDX schema: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to parse SPDX schema: %v", err)
 	}
 
 	spdxLicenses = make(map[string]struct{})
@@ -81,8 +81,9 @@ func init() {
 
 	// Log the loaded SPDX licenses for debugging
 	fmt.Printf("Loaded %d SPDX licenses\n", len(spdxLicenses))
-}
 
+	return nil
+}
 func FetchPackageLicense(packageManager, packageName string) []string {
 	var cmd *exec.Cmd
 	switch packageManager {

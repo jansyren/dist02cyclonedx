@@ -1,0 +1,39 @@
+before:
+  hooks:
+    - go mod download
+    # you may remove this if you don't need go generate
+    - go generate ./...
+builds:
+  -
+    binary: distro2go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+nfpms:
+  -
+    maintainer: Jan Syren <jan.syren@gmail.com>
+    license: "GPL-3.0"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      - src: spdx-data/spdx.schema.json_sample
+        dst: /var/lib/distro2go/spdx.schema.json
+      - src: config/dist02cyclonedx.yaml
+        dst: /etc/dist02cyclonedx.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'

@@ -85,6 +85,7 @@ func main() {
 	var apiURL string
 	var apiKey string
 	var tlsVerify bool
+	var spdxSchema string
 
 	var rootCmd = &cobra.Command{
 		Use:   "distro2sbom",
@@ -116,11 +117,29 @@ func main() {
 			} else {
 				tlsVerify, _ = cmd.Flags().GetBool("tls-verify")
 			}
+			if !cmd.Flags().Changed("spdx-schema") {
+				spdxSchema = viper.GetString("spdx-schema")
+			} else {
+				spdxSchema, _ = cmd.Flags().GetString("spdx-schema")
+			}
+
+			if spdxSchema == "" {
+				log.Fatal("spdx-schema is not set. Please specify the location of spdx.schema.json using the --spdx-schema flag or in the configuration file.")
+			}
+
+			// Load the SPDX schema
+			err := loadSPDXSchema(spdxSchema)
+			if err != nil {
+				log.Fatalf("Error loading SPDX schema: %v", err)
+			}
 
 			if distro == "" {
 				fmt.Println("Please specify a distribution using the --distro flag.")
 				return
 			}
+
+			// Set the spdx-schema value in viper for use in manage_licenses.go
+			// viper.Set("spdx-schema", spdxSchema)
 
 			sbom, err := generateSBOM(distro, "1.0")
 			if err != nil {
@@ -163,12 +182,14 @@ func main() {
 	rootCmd.Flags().StringVar(&apiURL, "api-url", "", "Dependency-Track API URL")
 	rootCmd.Flags().StringVar(&apiKey, "api-key", "", "Dependency-Track API Key")
 	rootCmd.Flags().BoolVar(&tlsVerify, "tls-verify", true, "Verify TLS certificates")
+	rootCmd.Flags().StringVar(&spdxSchema, "spdx-schema", "", "Location of spdx.schema.json")
 
 	viper.BindPFlag("distro", rootCmd.Flags().Lookup("distro"))
 	viper.BindPFlag("output", rootCmd.Flags().Lookup("output"))
 	viper.BindPFlag("api-url", rootCmd.Flags().Lookup("api-url"))
 	viper.BindPFlag("api-key", rootCmd.Flags().Lookup("api-key"))
 	viper.BindPFlag("tls-verify", rootCmd.Flags().Lookup("tls-verify"))
+	viper.BindPFlag("spdx-schema", rootCmd.Flags().Lookup("spdx-schema"))
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
