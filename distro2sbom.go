@@ -301,17 +301,25 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 			Dependencies: &[]string{},
 		},
 	}
-	packageNames := make([]string, len(components)-1)
-	for i, comp := range components[1:] {
+	packageNames := make([]string, len(components))
+	for i, comp := range components {
 		packageNames[i] = comp.Name
 	}
 
-	dependencyMap, err := getDependencies(packageManager, packageNames)
+	filteredPackageNames := []string{}
+	for _, pkg := range packageNames {
+		if pkg != "RootComponent" {
+			filteredPackageNames = append(filteredPackageNames, pkg)
+		}
+	}
+
+	dependencyMap, err := GetDependencies(packageManager, filteredPackageNames)
 	if err != nil {
+		log.Fatalf("Error getting dependencies: %v", err)
 		return nil, fmt.Errorf("error getting dependencies: %v", err)
 	}
 
-	for _, comp := range components[1:] {
+	for _, comp := range components {
 		deps := dependencyMap[comp.Name]
 		depSet := make(map[string]struct{})
 		for _, dep := range deps {
@@ -397,63 +405,62 @@ func listPackages(packageManager string) ([]struct {
 	return packages, nil
 }
 
-func getDependencies(packageManager string, packageNames []string) (map[string][]string, error) {
-	dependencyMap := make(map[string][]string)
-
-	switch packageManager {
-	case "dpkg":
-		for _, packageName := range packageNames {
-			cmd := exec.Command("apt-cache", "depends", packageName)
-			output, err := cmd.Output()
-			if err != nil {
-				return nil, fmt.Errorf("error executing apt-cache: %v", err)
-			}
-			dependencies := parseAptCacheOutput(string(output))
-			dependencyMap[packageName] = dependencies
-		}
-
-	case "rpm":
-		for _, packageName := range packageNames {
-			cmd := exec.Command("rpm", "-qR", packageName)
-			output, err := cmd.Output()
-			if err != nil {
-				return nil, fmt.Errorf("error executing rpm: %v", err)
-			}
-			dependencies := parseRpmOutput(string(output))
-			dependencyMap[packageName] = dependencies
-		}
-	default:
-		return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
-	}
-
-	return dependencyMap, nil
-}
-
-func parseAptCacheOutput(output string) []string {
-	var dependencies []string
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "  Depends:") {
-			dependency := strings.TrimSpace(strings.TrimPrefix(line, "  Depends:"))
-			dependencies = append(dependencies, dependency)
-		}
-	}
-	return dependencies
-}
-
-func parseRpmOutput(output string) []string {
-	var dependencies []string
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" && !strings.HasPrefix(line, "rpmlib(") {
-			dependencies = append(dependencies, line)
-		}
-	}
-	return dependencies
-}
-
+//	func getDependencies(packageManager string, packageNames []string) (map[string][]string, error) {
+//		dependencyMap := make(map[string][]string)
+//
+//		switch packageManager {
+//		case "dpkg":
+//			for _, packageName := range packageNames {
+//				cmd := exec.Command("apt-cache", "depends", packageName)
+//				output, err := cmd.Output()
+//				if err != nil {
+//					return nil, fmt.Errorf("error executing apt-cache: %v", err)
+//				}
+//				dependencies := parseAptCacheOutput(string(output))
+//				dependencyMap[packageName] = dependencies
+//			}
+//
+//		case "rpm":
+//			for _, packageName := range packageNames {
+//				cmd := exec.Command("rpm", "-qR", packageName)
+//				output, err := cmd.Output()
+//				if err != nil {
+//					return nil, fmt.Errorf("error executing rpm: %v", err)
+//				}
+//				dependencies := parseRpmOutput(string(output))
+//				dependencyMap[packageName] = dependencies
+//			}
+//		default:
+//			return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
+//		}
+//
+//		return dependencyMap, nil
+//	}
+//
+//	func parseAptCacheOutput(output string) []string {
+//		var dependencies []string
+//		scanner := bufio.NewScanner(strings.NewReader(output))
+//		for scanner.Scan() {
+//			line := strings.TrimSpace(scanner.Text())
+//			if strings.HasPrefix(line, "  Depends:") {
+//				dependency := strings.TrimSpace(strings.TrimPrefix(line, "  Depends:"))
+//				dependencies = append(dependencies, dependency)
+//			}
+//		}
+//		return dependencies
+//	}
+//
+//	func parseRpmOutput(output string) []string {
+//		var dependencies []string
+//		scanner := bufio.NewScanner(strings.NewReader(output))
+//		for scanner.Scan() {
+//			line := strings.TrimSpace(scanner.Text())
+//			if line != "" && !strings.HasPrefix(line, "rpmlib(") {
+//				dependencies = append(dependencies, line)
+//			}
+//		}
+//		return dependencies
+//	}
 func getOSVersion() string {
 	if runtime.GOOS == "linux" {
 		file, err := os.Open("/etc/os-release")
