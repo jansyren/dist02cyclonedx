@@ -72,13 +72,13 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 
 func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []byte, tlsVerify bool) error {
 	// Create or get the parent project for the distro
-	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "ComponentTypeOS", nil, tlsVerify)
+	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "OPERATING_SYSTEM", nil, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting parent project: %v", err)
 	}
 
 	// Create or get the project for the hostname
-	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "ComponentTypeOS", parentProjectUUID, tlsVerify)
+	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "OPERATING_SYSTEM", parentProjectUUID, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting project: %v", err)
 	}
