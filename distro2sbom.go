@@ -394,29 +394,16 @@ func getDependencies(packageManager string, packageNames []string) (map[string][
 
 	switch packageManager {
 	case "dpkg":
-		// Check if apt-rdepends is available
-		if _, err := exec.LookPath("apt-rdepends"); err == nil {
-			for _, packageName := range packageNames {
-				cmd := exec.Command("apt-rdepends", packageName)
-				output, err := cmd.Output()
-				if err != nil {
-					return nil, fmt.Errorf("error executing apt-rdepends: %v", err)
-				}
-				dependencies := parseAptRdependsOutput(string(output))
-				dependencyMap[packageName] = dependencies
+		for _, packageName := range packageNames {
+			cmd := exec.Command("apt-cache", "depends", packageName)
+			output, err := cmd.Output()
+			if err != nil {
+				return nil, fmt.Errorf("error executing apt-cache: %v", err)
 			}
-		} else {
-			// Fallback to apt-cache
-			for _, packageName := range packageNames {
-				cmd := exec.Command("apt-cache", "depends", packageName)
-				output, err := cmd.Output()
-				if err != nil {
-					return nil, fmt.Errorf("error executing apt-cache: %v", err)
-				}
-				dependencies := parseAptCacheOutput(string(output))
-				dependencyMap[packageName] = dependencies
-			}
+			dependencies := parseAptCacheOutput(string(output))
+			dependencyMap[packageName] = dependencies
 		}
+
 	case "rpm":
 		for _, packageName := range packageNames {
 			cmd := exec.Command("rpm", "-qR", packageName)
@@ -432,19 +419,6 @@ func getDependencies(packageManager string, packageNames []string) (map[string][
 	}
 
 	return dependencyMap, nil
-}
-
-func parseAptRdependsOutput(output string) []string {
-	var dependencies []string
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "  Depends:") {
-			dependency := strings.TrimSpace(strings.TrimPrefix(line, "  Depends:"))
-			dependencies = append(dependencies, dependency)
-		}
-	}
-	return dependencies
 }
 
 func parseAptCacheOutput(output string) []string {
@@ -492,31 +466,4 @@ func getOSVersion() string {
 		}
 	}
 	return runtime.GOOS + "/" + runtime.GOARCH
-}
-
-func fetchDependencies(packageManager, packageName string) ([]string, error) {
-	var cmd *exec.Cmd
-	switch packageManager {
-	case "dpkg":
-		cmd = exec.Command("apt-cache", "depends", packageName)
-	case "apk":
-		cmd = exec.Command("apk", "info", "-d", packageName)
-	case "rpm":
-		cmd = exec.Command("rpm", "-qR", packageName)
-	default:
-		return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
-	}
-
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("error executing dependency command: %v", err)
-	}
-
-	var dependencies []string
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
-	for scanner.Scan() {
-		dependencies = append(dependencies, strings.TrimSpace(scanner.Text()))
-	}
-
-	return dependencies, nil
 }
