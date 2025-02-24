@@ -112,7 +112,7 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
         packageManager = "dpkg"
     case "alpine":
         packageManager = "apk"
-    case "centos", "fedora", "rhel", "opensuse":
+    case "centos", "fedora", "rhel", "opensuse", "rocky":
         packageManager = "rpm"
     default:
         return nil, fmt.Errorf("unsupported distribution: %s", distro)
