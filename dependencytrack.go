@@ -58,7 +58,47 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusConflict {
+		// Project already exists, retrieve its UUID
+		existingUUID, err := getProjectUUID(apiURL, apiKey, name, tlsVerify)
+		if err != nil {
+			return nil, fmt.Errorf("error retrieving existing project UUID: %v", err)
+		}
+		return existingUUID, nil
+	}
+
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
+	}
+
+	var projectUUID UUID
+	if err := json.NewDecoder(resp.Body).Decode(&projectUUID); err != nil {
+		return nil, fmt.Errorf("error decoding response: %v", err)
+	}
+
+	return &projectUUID, nil
+}
+
+func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project/lookup?name=%s", apiURL, name), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header.Set("X-Api-Key", apiKey)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: !tlsVerify},
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(body))
 	}
@@ -73,13 +113,13 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 
 func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []byte, tlsVerify bool) error {
 	// Create or get the parent project for the distro
-	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "OPERATING_SYSTEM", nil, tlsVerify)
+	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "ComponentTypeOS", nil, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting parent project: %v", err)
 	}
 
 	// Create or get the project for the hostname
-	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "OPERATING_SYSTEM", parentProjectUUID, tlsVerify)
+	projectUUID, err := createProject(apiURL, apiKey, hostname, osVersion, "ComponentTypeOS", parentProjectUUID, tlsVerify)
 	if err != nil {
 		return fmt.Errorf("error creating or getting project: %v", err)
 	}
