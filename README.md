@@ -6,3 +6,10 @@ To run it you simply run dist02cyclonedx --distro <distro> -o sbom.json
 Currently it requires a copy of https://cyclonedx.org/schema/spdx.schema.json by the executeable, I will make this an argument later on.
 
 The output has been tested to upload to dependencytrack and so far so good.
+
+Fixes
+
+Ensure all distributions are working
+Add automatic upload to dependencytrack
+Add a config file
+Run differential on packages and update existing sbom
