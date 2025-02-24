@@ -9,7 +9,7 @@ The output has been tested to upload to dependencytrack and so far so good.
 
 Fixes
 
-Ensure all distributions are working
-Add automatic upload to dependencytrack
-Add a config file
-Run differential on packages and update existing sbom
+* Ensure all distributions are working
+* Add automatic upload to dependencytrack
+* Add a config file
+* Run differential on packages and update existing sbom
