@@ -97,6 +97,8 @@ func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) 
 		return nil, fmt.Errorf("error sending request: %v", err)
 	}
 	defer resp.Body.Close()
+	fmt.Printf("resp: %v\n", resp)
+	fmt.Println(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
