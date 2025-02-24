@@ -30,3 +30,5 @@ validation.txt
 err.log
 
 dist02cyclonedx
+*_bak
+*.bak

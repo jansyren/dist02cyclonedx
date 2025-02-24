@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -83,11 +84,14 @@ func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []b
 		return fmt.Errorf("error creating or getting project: %v", err)
 	}
 
+	// Base64 encode the SBOM
+	sbomBase64 := base64.StdEncoding.EncodeToString(sbomJSON)
+
 	// Upload the SBOM
 	sbomUpload := SBOMUpload{
 		ProjectUUID: projectUUID.UUID,
 		AutoCreate:  true,
-		BOM:         string(sbomJSON),
+		BOM:         sbomBase64,
 	}
 
 	sbomUploadJSON, err := json.Marshal(sbomUpload)
