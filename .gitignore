@@ -25,6 +25,7 @@ go.work.sum
 .env
 
 sbom.json*
+sbom*
 
 validation.txt
 err.log
