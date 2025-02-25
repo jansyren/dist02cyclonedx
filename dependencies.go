@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// GetDependencies fetches the dependencies of a list of packages using a specified package manager.
+//
+// Parameters:
+// - packageManager: the package manager to use for fetching dependencies.
+// - packageNames: a list of package names for which to fetch dependencies.
+//
+// Returns:
+// - a map of package names to their dependencies.
+// - an error if there was a problem fetching the dependencies.
 func GetDependencies(packageManager string, packageNames []string) (map[string][]string, error) {
 	type result struct {
 		packageName  string
@@ -54,6 +63,17 @@ func GetDependencies(packageManager string, packageNames []string) (map[string][
 	return dependencyMap, nil
 }
 
+/*************  ✨ Codeium AI Suggestion  *************/
+// fetchDependencies fetches the dependencies of a package using the specified package manager.
+//
+// Parameters:
+// - packageManager: the package manager to use for fetching dependencies.
+// - packageName: the name of the package for which to fetch dependencies.
+//
+// Returns:
+// - a slice of strings representing the dependencies of the package.
+// - an error if there was a problem executing the command.
+/****  bot-606125c3-00c4-4551-9a52-eedb7516de21  *****/
 func fetchDependencies(packageManager, packageName string) ([]string, error) {
 	var cmd *exec.Cmd
 	switch packageManager {

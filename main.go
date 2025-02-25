@@ -69,6 +69,17 @@ var supplierInfo = map[string]cyclonedx.OrganizationalEntity{
 	},
 }
 
+// main is the entry point of the program.
+//
+// It reads the configuration file and initializes the command line flags.
+// It then generates a Software Bill of Materials (SBOM) for a given Linux distribution
+// using CycloneDX format.
+//
+// Parameters:
+// - None.
+//
+// Returns:
+// - None.
 func main() {
 	viper.SetConfigName("dist02cyclonedx")
 	viper.SetConfigType("yaml")
@@ -197,6 +208,15 @@ func main() {
 	}
 }
 
+// generateSBOM generates a Software Bill of Materials (SBOM) for a given Linux distribution.
+//
+// Parameters:
+// - distro: the name of the Linux distribution (e.g., ubuntu, debian)
+// - version: the version of the Linux distribution
+//
+// Returns:
+// - *cyclonedx.BOM: the generated SBOM, or nil if an error occurred
+// - error: an error if the SBOM generation failed
 func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 	bom := cyclonedx.NewBOM()
 	bom.Version = 1
@@ -372,6 +392,10 @@ func generateSBOM(distro string, version string) (*cyclonedx.BOM, error) {
 	return bom, nil
 }
 
+// parseLicenseInfo parses the output of a package manager command to extract the license information.
+//
+// output is the output of the package manager command.
+// Returns the license information as a string.
 func parseLicenseInfo(output string) string {
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
@@ -383,6 +407,10 @@ func parseLicenseInfo(output string) string {
 	return ""
 }
 
+// listPackages retrieves a list of packages and their versions.
+//
+// packageManager is the package manager to use.
+// Returns a slice of structs containing the package name and version, and an error.
 func listPackages(packageManager string) ([]struct {
 	Name    string
 	Version string
@@ -426,62 +454,15 @@ func listPackages(packageManager string) ([]struct {
 	return packages, nil
 }
 
-//	func getDependencies(packageManager string, packageNames []string) (map[string][]string, error) {
-//		dependencyMap := make(map[string][]string)
+// getOSVersion retrieves the version of the operating system.
 //
-//		switch packageManager {
-//		case "dpkg":
-//			for _, packageName := range packageNames {
-//				cmd := exec.Command("apt-cache", "depends", packageName)
-//				output, err := cmd.Output()
-//				if err != nil {
-//					return nil, fmt.Errorf("error executing apt-cache: %v", err)
-//				}
-//				dependencies := parseAptCacheOutput(string(output))
-//				dependencyMap[packageName] = dependencies
-//			}
+// The function checks the runtime.GOOS to determine if the operating system is Linux.
+// If it is, it opens the /etc/os-release file and reads its contents.
+// It searches for a line that starts with "VERSION_ID=" and returns the version ID.
+// If the file cannot be opened, it executes the "uname -r" command and returns the output.
+// If the operating system is not Linux, it returns the concatenation of runtime.GOOS and runtime.GOARCH.
 //
-//		case "rpm":
-//			for _, packageName := range packageNames {
-//				cmd := exec.Command("rpm", "-qR", packageName)
-//				output, err := cmd.Output()
-//				if err != nil {
-//					return nil, fmt.Errorf("error executing rpm: %v", err)
-//				}
-//				dependencies := parseRpmOutput(string(output))
-//				dependencyMap[packageName] = dependencies
-//			}
-//		default:
-//			return nil, fmt.Errorf("unsupported package manager: %s", packageManager)
-//		}
-//
-//		return dependencyMap, nil
-//	}
-//
-//	func parseAptCacheOutput(output string) []string {
-//		var dependencies []string
-//		scanner := bufio.NewScanner(strings.NewReader(output))
-//		for scanner.Scan() {
-//			line := strings.TrimSpace(scanner.Text())
-//			if strings.HasPrefix(line, "  Depends:") {
-//				dependency := strings.TrimSpace(strings.TrimPrefix(line, "  Depends:"))
-//				dependencies = append(dependencies, dependency)
-//			}
-//		}
-//		return dependencies
-//	}
-//
-//	func parseRpmOutput(output string) []string {
-//		var dependencies []string
-//		scanner := bufio.NewScanner(strings.NewReader(output))
-//		for scanner.Scan() {
-//			line := strings.TrimSpace(scanner.Text())
-//			if line != "" && !strings.HasPrefix(line, "rpmlib(") {
-//				dependencies = append(dependencies, line)
-//			}
-//		}
-//		return dependencies
-//	}
+// Return type: string.
 func getOSVersion() string {
 	if runtime.GOOS == "linux" {
 		file, err := os.Open("/etc/os-release")

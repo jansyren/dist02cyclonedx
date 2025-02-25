@@ -52,6 +52,17 @@ var licenseCorrections = map[string]string{
 	// Add more corrections as needed
 }
 
+// loadSPDXSchema loads the SPDX license schema from the specified file path.
+//
+// It takes a schemaPath string as a parameter, which is the path to the SPDX schema file.
+//
+// It returns an error if there is any issue opening or reading the file, or if the schema file cannot be parsed.
+//
+// The function opens the file specified by the schemaPath and reads its contents.
+// It then unmarshals the JSON data into a struct with an "enum" field.
+// The function then creates a map to store the SPDX licenses.
+// It iterates over the "enum" field of the schema and adds each license to the map.
+// Finally, it logs the number of loaded SPDX licenses and returns nil.
 func loadSPDXSchema(schemaPath string) error {
 	file, err := os.Open(schemaPath)
 	if err != nil {
@@ -84,6 +95,12 @@ func loadSPDXSchema(schemaPath string) error {
 
 	return nil
 }
+
+// FetchPackageLicense retrieves the license of a package.
+//
+// packageManager is the package manager used.
+// packageName is the name of the package.
+// Returns a slice of strings representing the licenses of the package.
 func FetchPackageLicense(packageManager, packageName string) []string {
 	var cmd *exec.Cmd
 	switch packageManager {
@@ -108,6 +125,10 @@ func FetchPackageLicense(packageManager, packageName string) []string {
 	return correctLicenses(licenses)
 }
 
+// fallbackFetchLicense retrieves the license information of a package from common locations.
+//
+// It takes a package name as a parameter and returns the license information as a string.
+// If the license information is not found in the common locations, it returns "UNKNOWN".
 func fallbackFetchLicense(packageName string) string {
 	// Check common locations for license files
 	licensePaths := []string{
@@ -131,6 +152,17 @@ func fallbackFetchLicense(packageName string) string {
 	return "UNKNOWN"
 }
 
+// correctLicenses takes a string of licenses and returns a list of valid licenses.
+//
+// It splits the input string by common delimiters and filters out bind words.
+// It also corrects licenses using a map of license corrections.
+// If a license is not found in the SPDX license list, it is considered invalid.
+//
+// Parameters:
+// - licenses: a string of licenses, separated by common delimiters.
+//
+// Returns:
+// - a list of valid licenses.
 func correctLicenses(licenses string) []string {
 	// Split licenses by common delimiters
 	licenseList := strings.FieldsFunc(licenses, func(r rune) bool {

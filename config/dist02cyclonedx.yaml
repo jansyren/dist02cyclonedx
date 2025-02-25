@@ -1,1 +1,6 @@
 spdx-schema: /var/lib/distro2go/spdx.schema.json
+#distro: ubuntu
+#output: /tmp/sbom.json
+#api-url: http://localhost:8080
+#api-key: 123456
+#tls-verify: true

@@ -27,6 +27,17 @@ type SBOMUpload struct {
 	BOM         string `json:"bom"`
 }
 
+// getProjectUUID retrieves the UUID of a project from the Dependency-Track API.
+//
+// Parameters:
+// - apiURL: the URL of the Dependency-Track API.
+// - apiKey: the API key for authentication.
+// - name: the name of the project.
+// - tlsVerify: a boolean indicating whether to verify the TLS certificate.
+//
+// Returns:
+// - *UUID: the UUID of the project.
+// - error: an error if the request fails or the response is not OK.
 func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/project?name=%s", apiURL, name), nil)
 	if err != nil {
@@ -62,6 +73,20 @@ func getProjectUUID(apiURL, apiKey, name string, tlsVerify bool) (*UUID, error) 
 	return &projects[0], nil
 }
 
+// createProject creates a new project in the Dependency-Track API.
+//
+// Parameters:
+// - apiURL: the URL of the Dependency-Track API.
+// - apiKey: the API key for authentication.
+// - name: the name of the project.
+// - version: the version of the project.
+// - classifier: the classifier of the project.
+// - parentUUID: the UUID of the parent project.
+// - tlsVerify: a boolean indicating whether to verify the TLS certificate.
+//
+// Returns:
+// - *UUID: the UUID of the created project.
+// - error: an error if the request fails or the response is not OK.
 func createProject(apiURL, apiKey, name, version, classifier string, parentUUID *UUID, tlsVerify bool) (*UUID, error) {
 	project := Project{
 		Name:       name,
@@ -115,6 +140,19 @@ func createProject(apiURL, apiKey, name, version, classifier string, parentUUID 
 	return &projectUUID, nil
 }
 
+// uploadSBOM uploads a Software Bill of Materials (SBOM) to the Dependency-Track API.
+//
+// Parameters:
+// - apiURL: the URL of the Dependency-Track API.
+// - apiKey: the API key for authentication.
+// - distro: the name of the operating system distribution.
+// - hostname: the hostname of the system.
+// - osVersion: the version of the operating system.
+// - sbomJSON: the SBOM in JSON format.
+// - tlsVerify: a boolean indicating whether to verify the TLS certificate.
+//
+// Returns:
+// - error: an error if the upload fails.
 func uploadSBOM(apiURL, apiKey, distro, hostname, osVersion string, sbomJSON []byte, tlsVerify bool) error {
 	// Create or get the parent project for the distro
 	parentProjectUUID, err := createProject(apiURL, apiKey, distro, "", "OPERATING_SYSTEM", nil, tlsVerify)
