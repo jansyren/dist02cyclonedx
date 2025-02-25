@@ -11,19 +11,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Specify v4 for checkout
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5  # Specify a version for setup-go
         with:
-          go-version: '1.23.1'
-
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v2.7.0
-        with:
-          version: latest
+          go-version: '1.23.1'  # VERY IMPORTANT: Pin Go version
 
       - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action  # latest is generally fine here
+        with:
+          version: latest  # Or omit version, same effect
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
-        run: goreleaser release --clean
