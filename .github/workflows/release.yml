@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  # packages: write
+  # issues: write
+  # id-token: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -19,9 +25,12 @@ jobs:
           go-version: '1.23.1'  # VERY IMPORTANT: Pin Go version
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action  # latest is generally fine here
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest  # Or omit version, same effect
+          # either 'goreleaser' (default) or 'goreleaser-pro'
+          distribution: goreleaser
+          # 'latest', 'nightly', or a semver
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
