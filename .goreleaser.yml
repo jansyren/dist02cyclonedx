@@ -2,7 +2,6 @@ version: 2
 
 builds:
   - id: dist02cyclonedx
-    main: ./cmd/distro2go/main.go
     goos:
       - linux
     goarch:
