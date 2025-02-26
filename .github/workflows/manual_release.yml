@@ -1,27 +1,36 @@
-name: Release
+name: Manual Release
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}  # Use GitHub-hosted runners for Ubuntu
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, rocky-8, rocky-9]  # Use simple names
-        goos: [linux] #Only linux
-        goarch: [amd64] #Only amd64
+        goos: [linux]
+        goarch: [amd64]
         include:
           - os: rocky-8
-            container_image: 'rockylinux/rockylinux:8' #Define image
+            container_image: 'rockylinux/rockylinux:8'
             cgo_enabled: 0
+            package_format: rpm
           - os: rocky-9
-            container_image: 'rockylinux/rockylinux:9'  #Define image
+            container_image: 'rockylinux/rockylinux:9'
             cgo_enabled: 0
+            package_format: rpm
+          - os: ubuntu-20.04
+            container_image: 'ubuntu:20.04'
+            cgo_enabled: 1
+            package_format: deb
+          - os: ubuntu-22.04
+            container_image: 'ubuntu:22.04'
+            cgo_enabled: 1
+            package_format: deb
+          - os: ubuntu-24.04
+            container_image: 'ubuntu:24.04'
+            cgo_enabled: 1
+            package_format: deb
 
     steps:
       - name: Checkout
@@ -32,12 +41,53 @@ jobs:
         with:
           go-version: '1.23.1'
 
-      - name: Set up QEMU  # QEMU for multi-architecture builds (if needed)
-        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04' #For ubuntu.
+      - name: Create custom .goreleaser.yml for this OS
+        run: |
+          cat > .goreleaser.yml << EOF
+          version: 2
+          
+          builds:
+            - id: dist02cyclonedx
+              goos:
+                - linux
+              goarch:
+                - amd64
+              env:
+                - CGO_ENABLED=${{ matrix.cgo_enabled }}
+          
+          nfpms:
+            - id: dist02cyclonedx-${{ matrix.os }}
+              package_name: dist02cyclonedx-${{ matrix.os }}
+              maintainer: Jan Syren <jan.syren@gmail.com>
+              license: "GPL-3.0"
+              formats:
+                - ${{ matrix.package_format }}
+              bindir: /usr/local/bin
+              contents:
+                - src: spdx-data/spdx.schema.json_sample
+                  dst: /var/lib/distro2go/spdx.schema.json
+                - src: config/dist02cyclonedx.yaml
+                  dst: /etc/dist02cyclonedx.yaml
+          
+          checksum:
+            name_template: 'checksums-${{ matrix.os }}.txt'
+          
+          changelog:
+            sort: asc
+            filters:
+              exclude:
+                - '^docs:'
+                - '^test:'
+          EOF
+          
+          cat .goreleaser.yml
+
+      - name: Set up QEMU
+        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04'
         uses: docker/setup-qemu-action@v3
 
       - name: Run GoReleaser (Ubuntu)
-        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04' #For ubuntu.
+        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
@@ -46,16 +96,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 1  # CGO enabled for Ubuntu
+          CGO_ENABLED: ${{ matrix.cgo_enabled }}
 
-      - name: Run GoReleaser (Rocky)
-        if: matrix.os == 'rocky-8' || matrix.os == 'rocky-9' #Only rocky
+      - name: Install GoReleaser in Rocky Container
+        if: matrix.os == 'rocky-8' || matrix.os == 'rocky-9'
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.container_image }}
           options: --privileged --volume ${{ github.workspace }}:/go/src/app --workdir /go/src/app
           run: |
-            yum install -y  gcc go  # Install build tools *inside* the container
+            yum install -y gcc go wget
+            wget https://github.com/goreleaser/goreleaser/releases/download/v1.18.2/goreleaser_Linux_x86_64.tar.gz
+            tar -xzf goreleaser_Linux_x86_64.tar.gz -C /usr/local/bin
+            chmod +x /usr/local/bin/goreleaser
             go version
             goreleaser release --clean
         env:
@@ -63,3 +116,9 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.cgo_enabled }}
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist02cyclonedx-${{ matrix.os }}
+          path: dist/*
