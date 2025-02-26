@@ -1,39 +1,27 @@
 name: Release
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ${{ matrix.os }}  # Use GitHub-hosted runners for Ubuntu
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, 'rockylinux/rockylinux:8', 'rockylinux/rockylinux:9']
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, rocky-8, rocky-9]  # Use simple names
+        goos: [linux] #Only linux
+        goarch: [amd64] #Only amd64
         include:
-          - os: 'rockylinux/rockylinux:8'
-            goos: linux
-            goarch: amd64
-            env:
-              CGO_ENABLED: 0
-          - os: 'rockylinux/rockylinux:9'
-            goos: linux
-            goarch: amd64
-            env:
-                CGO_ENABLED: "0"
-          - os: ubuntu-20.04
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-22.04
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-24.04
-            goos: linux
-            goarch: amd64
+          - os: rocky-8
+            container_image: 'rockylinux/rockylinux:8' #Define image
+            cgo_enabled: 0
+          - os: rocky-9
+            container_image: 'rockylinux/rockylinux:9'  #Define image
+            cgo_enabled: 0
 
     steps:
       - name: Checkout
@@ -44,10 +32,12 @@ jobs:
         with:
           go-version: '1.23.1'
 
-      - name: Set up QEMU
+      - name: Set up QEMU  # QEMU for multi-architecture builds (if needed)
+        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04' #For ubuntu.
         uses: docker/setup-qemu-action@v3
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (Ubuntu)
+        if: matrix.os == 'ubuntu-20.04' || matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-24.04' #For ubuntu.
         uses: goreleaser/goreleaser-action
         with:
           version: latest
@@ -56,4 +46,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: ${{ matrix.env.CGO_ENABLED || '1' }}
+          CGO_ENABLED: 1  # CGO enabled for Ubuntu
+
+      - name: Run GoReleaser (Rocky)
+        if: matrix.os == 'rocky-8' || matrix.os == 'rocky-9' #Only rocky
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.container_image }}
+          options: --privileged --volume ${{ github.workspace }}:/go/src/app --workdir /go/src/app
+          run: |
+            yum install -y  gcc go  # Install build tools *inside* the container
+            go version
+            goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo_enabled }}
